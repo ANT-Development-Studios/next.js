@@ -1,0 +1,127 @@
+---
+format_version: '8'
+default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+project_type: other
+trigger_map:
+- push_branch: release/*
+  workflow: deploy-staging
+- push_branch: master
+  workflow: deploy-production
+workflows:
+  deploy-dev:
+    steps:
+    - activate-ssh-key@4.0.5:
+        run_if: '{{getenv "SSH_RSA_PRIVATE_KEY" | ne ""}}'
+    - git-clone@4.0.18: {}
+    - script@1.1.6:
+        title: Set environment config (DEV)
+        inputs:
+        - content: |-
+            #!/usr/bin/env bash
+            # fail if any commands fails
+            set -e
+            # debug log
+            set -x
+
+            # specify local download path
+            file_local_path=$BITRISE_SOURCE_DIR/src/firebase.config.js
+
+            # download the file
+            wget -O "$file_local_path" "$BITRISEIO_DEV_FIREBASE_CONFIG_URL"
+            echo "file downloaded to: $file_local_path"
+
+            # Remove sample
+            rm $BITRISE_SOURCE_DIR/src/sample.firebase.config.js
+    - yarn@0.1.1:
+        inputs:
+        - command: install
+        title: Install dependencies
+    - yarn@0.1.1:
+        title: Lint
+        inputs:
+        - command: lint
+    - yarn@0.1.1:
+        inputs:
+        - command: test
+        title: Run unit tests
+    - yarn@0.1.1:
+        inputs:
+        - args: "--token=$FIREBASE_TOKEN --project={PROJECT-NAME}"
+        - command: deploy
+        title: Deploy (DEV)
+    - deploy-to-bitrise-io@1.9.6: {}
+    - slack@3.1.3:
+        inputs:
+        - channel: "#bitrise"
+        - text: ''
+        - image_url: "$BITRISE_PUBLIC_INSTALL_PAGE_QR_CODE_IMAGE_URL"
+        - thumb_url: ''
+        - fields: |
+            App|${BITRISE_APP_TITLE}
+            Branch|${BITRISE_GIT_BRANCH}
+            Workflow|${BITRISE_TRIGGERED_WORKFLOW_ID}
+            Build number|${BITRISE_BUILD_NUMBER}
+            Commit hash|${BITRISE_GIT_COMMIT}
+        - buttons: |
+            View App|${BITRISE_APP_URL}
+            View Build|${BITRISE_BUILD_URL}
+        - webhook_url: "$SLACK_WEBHOOK_URL"
+  deploy-production:
+    steps:
+    - activate-ssh-key@4.0.5:
+        run_if: '{{getenv "SSH_RSA_PRIVATE_KEY" | ne ""}}'
+    - git-clone@4.0.18: {}
+    - script@1.1.6:
+        title: Set environment config (PRODUCTION)
+        inputs:
+        - content: |-
+            #!/usr/bin/env bash
+            # fail if any commands fails
+            set -e
+            # debug log
+            set -x
+
+            # specify local download path
+            file_local_path=$BITRISE_SOURCE_DIR/src/firebase.config.js
+
+            # download the file
+            wget -O "$file_local_path" "$BITRISEIO_PRODUCTION_FIREBASE_CONFIG_URL"
+            echo "file downloaded to: $file_local_path"
+
+            # Remove sample
+            rm $BITRISE_SOURCE_DIR/src/sample.firebase.config.js
+    - yarn@0.1.1:
+        inputs:
+        - command: install
+        title: Install dependencies
+    - yarn@0.1.1:
+        title: Lint
+        inputs:
+        - command: lint
+    - yarn@0.1.1:
+        inputs:
+        - command: test
+        title: Run unit tests
+    - yarn@0.1.1:
+        inputs:
+        - args: "--token=$FIREBASE_TOKEN --project={PROJECT-NAME}"
+        - command: deploy
+        title: Deploy (PRODUCTION)
+    - deploy-to-bitrise-io@1.9.6: {}
+    - slack@3.1.3:
+        inputs:
+        - channel: "#bitrise"
+        - text: ''
+        - image_url: "$BITRISE_PUBLIC_INSTALL_PAGE_QR_CODE_IMAGE_URL"
+        - thumb_url: ''
+        - fields: |
+            App|${BITRISE_APP_TITLE}
+            Branch|${BITRISE_GIT_BRANCH}
+            Workflow|${BITRISE_TRIGGERED_WORKFLOW_ID}
+            Build number|${BITRISE_BUILD_NUMBER}
+            Commit hash|${BITRISE_GIT_COMMIT}
+        - buttons: |
+            View App|${BITRISE_APP_URL}
+            View Build|${BITRISE_BUILD_URL}
+        - webhook_url: "$SLACK_WEBHOOK_URL"
+        
